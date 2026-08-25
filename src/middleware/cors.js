@@ -19,7 +19,7 @@ const cors = (req, res, next) => {
   const origin = req.headers.origin
   res.header('Access-Control-Allow-Origin', origin)
   res.header('Access-Control-Allow-Headers', 'authorization,content-type')
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS')
   res.header('Access-Control-Max-Age', ACMA)
   if (req.method === 'OPTIONS') {
     res.status(200).json({})

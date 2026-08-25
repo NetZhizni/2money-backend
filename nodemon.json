@@ -1,0 +1,4 @@
+{
+  "ignore": ["**/getStaffTree.json", "jsdoc/*"],
+  "delay": 2500
+}
