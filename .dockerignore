@@ -1,0 +1,10 @@
+node_modules
+pg_data
+.env
+.env.*
+.git
+.github
+.gitignore
+.claude
+README.md
+npm-debug.log

@@ -7,6 +7,7 @@ dev-dist
 .env
 .env*
 .env.*.local
+!.env.example
 *.tsbuildinfo
 .firebase
 firebase-debug.log
