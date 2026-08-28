@@ -1,5 +1,5 @@
 import pg from '#util/pg'
-import { buildPatchSet, listOwned, softDelete } from './syncable.js'
+import { buildPatchSet, listAll as listAllRows, listOwned, softDelete } from './syncable.js'
 
 class RecurringTemplateModel {
   /** @returns {Promise<Object>} */
@@ -56,6 +56,16 @@ class RecurringTemplateModel {
 
   static async listForOwner({ ownerId, since }) {
     return listOwned('recurring_templates', ownerId, since)
+  }
+
+  /**
+   * Шаблони всієї родини (`?scope=all`) — щоб перегляд "витрат іншого
+   * користувача" міг показати і його регулярні платежі, не лише вже
+   * згенеровані транзакції. Активні-тільки при першому завантаженні,
+   * дельта (разом із tombstone-записами) за `since`.
+   */
+  static async listAll({ since } = {}) {
+    return listAllRows('recurring_templates', since)
   }
 
   static async patch({ id, ownerId, ...fields }) {

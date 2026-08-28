@@ -1,6 +1,14 @@
 import pg from '#util/pg'
-import { buildPatchSet, listOwned, softDelete } from './syncable.js'
+import { buildPatchSet, listAll as listAllRows, softDeleteAny } from './syncable.js'
 
+/**
+ * Categories are a shared family resource, unlike every other syncable
+ * entity (accounts/transactions/recurring_templates/budgets stay per-owner)
+ * — any active member sees and can create/edit/archive the same list, so
+ * `owner_id` here is create-time provenance only, never an access filter
+ * (see the merge-shared-categories migration for how the old per-owner
+ * copies were consolidated into this model).
+ */
 class CategoryModel {
   /** @returns {Promise<Object>} */
   static async upsert({
@@ -30,7 +38,6 @@ class CategoryModel {
         is_default = EXCLUDED.is_default,
         updated_at = CURRENT_TIMESTAMP,
         deleted_at = NULL
-      WHERE categories.owner_id = EXCLUDED.owner_id
       RETURNING *
     `
     const values = [id, ownerId, name, kind, icon, color, parentId, archived, order, isDefault]
@@ -38,31 +45,33 @@ class CategoryModel {
     return result.rows[0]
   }
 
-  static async listForOwner({ ownerId, since }) {
-    return listOwned('categories', ownerId, since)
+  /**
+   * The whole family's categories, no owner filter — both the plain pull and
+   * the legacy `?scope=all` pull resolve here now (see listCategories.js).
+   * Active-only on first load, delta (incl. tombstones) with `since`.
+   */
+  static async listAll({ since } = {}) {
+    return listAllRows('categories', since)
   }
 
-  static async patch({ id, ownerId, ...fields }) {
-    const { setClauses, values } = buildPatchSet(fields, 3)
+  static async patch({ id, ownerId: _ownerId, ...fields }) {
+    const { setClauses, values } = buildPatchSet(fields, 2)
     if (!setClauses.length) {
-      const result = await pg.query(
-        `SELECT * FROM categories WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL`,
-        [id, ownerId],
-      )
+      const result = await pg.query(`SELECT * FROM categories WHERE id = $1 AND deleted_at IS NULL`, [id])
       return result.rows[0]
     }
     const query = `
       UPDATE categories
       SET ${setClauses.join(', ')}, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL
+      WHERE id = $1 AND deleted_at IS NULL
       RETURNING *
     `
-    const result = await pg.query(query, [id, ownerId, ...values])
+    const result = await pg.query(query, [id, ...values])
     return result.rows[0]
   }
 
-  static async remove({ id, ownerId }) {
-    return softDelete('categories', id, ownerId)
+  static async remove({ id }) {
+    return softDeleteAny('categories', id)
   }
 }
 

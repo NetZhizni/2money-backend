@@ -5,13 +5,18 @@ import { parseSince } from '#util/time'
  * GET /api/transactions
  * За замовчуванням — транзакції, де користувач учасник (owner або контрагент
  * переказу), активні або дельта за `?since=`.
- * `?scope=all` — активні транзакції всієї родини (сукупний баланс на TotalBalanceView,
- * той самий рівень довіри, що й `accounts?scope=all` — рахунки й так видно всім).
+ * `?scope=all` — транзакції всієї родини (сукупний баланс на TotalBalanceView,
+ * той самий рівень довіри, що й `accounts?scope=all` — рахунки й так видно
+ * всім), так само активні-тільки або дельта за `?since=` — свій курсор,
+ * окремий від курсора власних/учасницьких транзакцій.
  */
 const listTransactions = async (req) => {
-  if (req.query.scope === 'all') return TransactionModel.listAllActive()
   const syncedAt = Date.now()
-  const items = await TransactionModel.listForParticipant({ userId: req.user.id, since: parseSince(req.query.since) })
+  const since = parseSince(req.query.since)
+  const items =
+    req.query.scope === 'all'
+      ? await TransactionModel.listAll({ since })
+      : await TransactionModel.listForParticipant({ userId: req.user.id, since })
   return { items, syncedAt }
 }
 

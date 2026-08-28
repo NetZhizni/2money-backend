@@ -1,5 +1,5 @@
 import pg from '#util/pg'
-import { buildPatchSet, listOwned, softDelete } from './syncable.js'
+import { buildPatchSet, listAll as listAllRows, listOwned, softDelete } from './syncable.js'
 
 class BudgetModel {
   /** @returns {Promise<Object>} */
@@ -24,6 +24,15 @@ class BudgetModel {
 
   static async listForOwner({ ownerId, since }) {
     return listOwned('budgets', ownerId, since)
+  }
+
+  /**
+   * Бюджети всієї родини (`?scope=all`) — для сімейного бюджету (сума
+   * бюджетів по категорії з усіх профілів). Активні-тільки при першому
+   * завантаженні, дельта (разом із tombstone-записами) за `since`.
+   */
+  static async listAll({ since } = {}) {
+    return listAllRows('budgets', since)
   }
 
   static async patch({ id, ownerId, ...fields }) {

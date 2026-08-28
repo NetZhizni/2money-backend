@@ -1,5 +1,5 @@
 import pg from '#util/pg'
-import { buildPatchSet, listOwned, softDelete } from './syncable.js'
+import { buildPatchSet, listAll as listAllRows, listOwned, softDelete } from './syncable.js'
 
 class AccountModel {
   /**
@@ -65,10 +65,13 @@ class AccountModel {
     return result.rows[0]?.owner_id
   }
 
-  /** Активні рахунки всієї родини (`?scope=all`) — для пікера переказів і сукупного балансу. */
-  static async listAllActive() {
-    const result = await pg.query(`SELECT * FROM accounts WHERE deleted_at IS NULL ORDER BY created_at`)
-    return result.rows
+  /**
+   * Рахунки всієї родини (`?scope=all`) — для пікера переказів і сукупного
+   * балансу. Активні-тільки при першому завантаженні, дельта (разом із
+   * tombstone-записами) за `since` — так само, як і `listForOwner`.
+   */
+  static async listAll({ since } = {}) {
+    return listAllRows('accounts', since)
   }
 
   static async patch({ id, ownerId, ...fields }) {

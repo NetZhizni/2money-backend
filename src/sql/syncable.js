@@ -26,6 +26,25 @@ export async function listOwned(table, ownerId, since) {
 }
 
 /**
+ * Whole-family records (no owner filter) — backs every `?scope=all` list:
+ * active-only on first load, delta (incl. tombstones) with `since`. Same
+ * shape/contract as `listOwned`, just without the `owner_id` predicate, so a
+ * client can delta-sync "everyone's" copy of a table the exact same way it
+ * delta-syncs its own (see src/db/sync.ts's pullEntity on the frontend).
+ */
+export async function listAll(table, since) {
+  if (since) {
+    const { rows } = await pg.query(
+      `SELECT * FROM ${table} WHERE updated_at > $1 ORDER BY updated_at`,
+      [since],
+    )
+    return rows
+  }
+  const { rows } = await pg.query(`SELECT * FROM ${table} WHERE deleted_at IS NULL ORDER BY created_at`)
+  return rows
+}
+
+/**
  * Builds `col = $N` fragments for a partial UPDATE from a { column: value }
  * map, skipping `undefined` entries (meaning "leave unchanged"). `startIndex`
  * is the first free `$N` placeholder (after id/ownerId, which the caller
@@ -52,6 +71,17 @@ export async function softDelete(table, id, ownerId) {
      SET deleted_at = current_timestamp, updated_at = current_timestamp
      WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL`,
     [id, ownerId],
+  )
+  return rowCount > 0
+}
+
+/** Same as `softDelete`, without the `owner_id` check — for a shared (not per-owner) table like categories. */
+export async function softDeleteAny(table, id) {
+  const { rowCount } = await pg.query(
+    `UPDATE ${table}
+     SET deleted_at = current_timestamp, updated_at = current_timestamp
+     WHERE id = $1 AND deleted_at IS NULL`,
+    [id],
   )
   return rowCount > 0
 }

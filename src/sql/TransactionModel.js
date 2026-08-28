@@ -1,5 +1,5 @@
 import pg from '#util/pg'
-import { buildPatchSet } from './syncable.js'
+import { buildPatchSet, listAll as listAllRows } from './syncable.js'
 
 class TransactionModel {
   /** @returns {Promise<Object>} */
@@ -76,10 +76,13 @@ class TransactionModel {
     return result.rows
   }
 
-  /** Active transactions across the WHOLE family (`?scope=all`) — combined-balance breakdown (TotalBalanceView). */
-  static async listAllActive() {
-    const result = await pg.query(`SELECT * FROM transactions WHERE deleted_at IS NULL ORDER BY date DESC, created_at DESC`)
-    return result.rows
+  /**
+   * Transactions across the WHOLE family (`?scope=all`) — combined-balance
+   * breakdown (TotalBalanceView). Active-only on first load, delta (incl.
+   * tombstones) with `since`, same contract as `listForParticipant`.
+   */
+  static async listAll({ since } = {}) {
+    return listAllRows('transactions', since)
   }
 
   static async patch({ id, ownerId, ...fields }) {
