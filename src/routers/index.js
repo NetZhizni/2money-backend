@@ -9,6 +9,7 @@ import budgetsRouter from './budgets.js'
 import settingsRouter from './settings.js'
 import usersRouter from './users.js'
 import adminRouter from './admin.js'
+import receiptsRouter from './receipts.js'
 
 const internalRouter = Router()
 internalRouter.use(authGoogle)
@@ -17,6 +18,7 @@ internalRouter.use('/accounts', accountsRouter)
 internalRouter.use('/categories', categoriesRouter)
 internalRouter.use('/transactions', transactionsRouter)
 internalRouter.use('/recurring-templates', recurringTemplatesRouter)
+internalRouter.use('/receipts', receiptsRouter)
 internalRouter.use('/budgets', budgetsRouter)
 internalRouter.use('/settings', settingsRouter)
 internalRouter.use('/users', usersRouter)

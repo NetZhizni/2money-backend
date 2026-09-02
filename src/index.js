@@ -6,7 +6,9 @@ import router from './routers/index.js'
 
 const app = express()
 app.use(cors)
-app.use(express.json({ limit: '1mb' }))
+// 8mb: base64 роздуває фото приблизно на 37% проти бінарного розміру —
+// POST /api/receipts/scan шле фото чека саме так (див. receipt/scanReceipt.js).
+app.use(express.json({ limit: '8mb' }))
 
 const startServer = () => {
   app.use('/api', router.internalRouter)
