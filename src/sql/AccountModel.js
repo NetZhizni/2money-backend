@@ -22,12 +22,13 @@ class AccountModel {
     archived = false,
     order = 0,
     note = null,
+    currencyDisplay = null,
   }) {
     const query = `
       INSERT INTO accounts (
         id, owner_id, name, type, currency, icon, color,
-        initial_balance, loan_direction, include_in_total, archived, "order", note
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        initial_balance, loan_direction, include_in_total, archived, "order", note, currency_display
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         type = EXCLUDED.type,
@@ -40,6 +41,7 @@ class AccountModel {
         archived = EXCLUDED.archived,
         "order" = EXCLUDED."order",
         note = EXCLUDED.note,
+        currency_display = EXCLUDED.currency_display,
         updated_at = CURRENT_TIMESTAMP,
         deleted_at = NULL
       WHERE accounts.owner_id = EXCLUDED.owner_id
@@ -47,7 +49,7 @@ class AccountModel {
     `
     const values = [
       id, ownerId, name, type, currency, icon, color,
-      initialBalance, loanDirection, includeInTotal, archived, order, note,
+      initialBalance, loanDirection, includeInTotal, archived, order, note, currencyDisplay,
     ]
     const result = await pg.query(query, values)
     return result.rows[0]
@@ -63,6 +65,15 @@ class AccountModel {
   static async getOwnerId({ id }) {
     const result = await pg.query(`SELECT owner_id FROM accounts WHERE id = $1`, [id])
     return result.rows[0]?.owner_id
+  }
+
+  /** Поточна валюта рахунку — потрібна, щоб перевірити, чи апсерт справді її МІНЯЄ (див. upsertAccount.js/patchAccount.js). */
+  static async getCurrency({ id, ownerId }) {
+    const result = await pg.query(
+      `SELECT currency FROM accounts WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL`,
+      [id, ownerId],
+    )
+    return result.rows[0]?.currency
   }
 
   /**

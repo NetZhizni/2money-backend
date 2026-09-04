@@ -32,10 +32,9 @@ const upsertTransaction = async (req) => {
     amount: b.amount,
     toAmount: b.toAmount ?? null,
     currency: b.currency,
-    exchangeRate: b.exchangeRate,
-    baseAmount: b.baseAmount,
     note: b.note ?? null,
     templateId: b.templateId ?? null,
+    receiptId: b.receiptId ?? null,
   })
   if (!transaction) {
     const error = new Error('Транзакція з таким id вже належить іншому користувачу')

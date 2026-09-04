@@ -29,10 +29,9 @@ const patchTransaction = async (req) => {
     amount: b.amount,
     to_amount: b.toAmount,
     currency: b.currency,
-    exchange_rate: b.exchangeRate,
-    base_amount: b.baseAmount,
     note: b.note,
     template_id: b.templateId,
+    receipt_id: b.receiptId,
   })
   if (!transaction) {
     const error = new Error('Транзакцію не знайдено')

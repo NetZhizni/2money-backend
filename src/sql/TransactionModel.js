@@ -16,17 +16,16 @@ class TransactionModel {
     amount,
     toAmount = null,
     currency,
-    exchangeRate = 1,
-    baseAmount,
     note = null,
     templateId = null,
+    receiptId = null,
   }) {
     const query = `
       INSERT INTO transactions (
         id, owner_id, participant_ids, type, date, account_id, to_account_id,
-        category_id, subcategory_id, amount, to_amount, currency, exchange_rate,
-        base_amount, note, template_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        category_id, subcategory_id, amount, to_amount, currency,
+        note, template_id, receipt_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       ON CONFLICT (id) DO UPDATE SET
         participant_ids = EXCLUDED.participant_ids,
         type = EXCLUDED.type,
@@ -38,10 +37,9 @@ class TransactionModel {
         amount = EXCLUDED.amount,
         to_amount = EXCLUDED.to_amount,
         currency = EXCLUDED.currency,
-        exchange_rate = EXCLUDED.exchange_rate,
-        base_amount = EXCLUDED.base_amount,
         note = EXCLUDED.note,
         template_id = EXCLUDED.template_id,
+        receipt_id = EXCLUDED.receipt_id,
         updated_at = CURRENT_TIMESTAMP,
         deleted_at = NULL
       WHERE transactions.owner_id = EXCLUDED.owner_id
@@ -49,11 +47,53 @@ class TransactionModel {
     `
     const values = [
       id, ownerId, participantIds, type, date, accountId, toAccountId,
-      categoryId, subcategoryId, amount, toAmount, currency, exchangeRate,
-      baseAmount, note, templateId,
+      categoryId, subcategoryId, amount, toAmount, currency,
+      note, templateId, receiptId,
     ]
     const result = await pg.query(query, values)
     return result.rows[0]
+  }
+
+  /** Чи існує (активна) транзакція, що торкається цього рахунку — блокує зміну його валюти. */
+  static async existsForAccount({ accountId }) {
+    const result = await pg.query(
+      `SELECT 1 FROM transactions
+       WHERE (account_id = $1 OR to_account_id = $1) AND deleted_at IS NULL
+       LIMIT 1`,
+      [accountId],
+    )
+    return result.rowCount > 0
+  }
+
+  /** Чи існує (активна) транзакція проти цієї категорії (чи як підкатегорії) — блокує зміну її валюти. */
+  static async existsForCategory({ categoryId }) {
+    const result = await pg.query(
+      `SELECT 1 FROM transactions
+       WHERE (category_id = $1 OR subcategory_id = $1) AND deleted_at IS NULL
+       LIMIT 1`,
+      [categoryId],
+    )
+    return result.rowCount > 0
+  }
+
+  /**
+   * Найпоширеніша валюта серед УСІХ (усієї родини) операцій, уже заведених
+   * проти цієї (верхньорівневої) категорії — використовується, щоб дати їй
+   * розумну валюту замість сліпого фолбеку на базову валюту власника (див.
+   * upsertCategory.js): категорія, по якій завжди були лише операції в USD,
+   * не повинна мовчки стати "базовою валютою".
+   * @returns {Promise<string|undefined>}
+   */
+  static async getDominantCurrencyForCategory({ categoryId }) {
+    const result = await pg.query(
+      `SELECT currency FROM transactions
+       WHERE category_id = $1 AND deleted_at IS NULL
+       GROUP BY currency
+       ORDER BY COUNT(*) DESC
+       LIMIT 1`,
+      [categoryId],
+    )
+    return result.rows[0]?.currency
   }
 
   /**

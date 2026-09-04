@@ -22,11 +22,13 @@ class CategoryModel {
     archived = false,
     order = 0,
     isDefault = false,
+    currency = null,
+    currencyDisplay = null,
   }) {
     const query = `
       INSERT INTO categories (
-        id, owner_id, name, kind, icon, color, parent_id, archived, "order", is_default
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        id, owner_id, name, kind, icon, color, parent_id, archived, "order", is_default, currency, currency_display
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         kind = EXCLUDED.kind,
@@ -36,11 +38,13 @@ class CategoryModel {
         archived = EXCLUDED.archived,
         "order" = EXCLUDED."order",
         is_default = EXCLUDED.is_default,
+        currency = EXCLUDED.currency,
+        currency_display = EXCLUDED.currency_display,
         updated_at = CURRENT_TIMESTAMP,
         deleted_at = NULL
       RETURNING *
     `
-    const values = [id, ownerId, name, kind, icon, color, parentId, archived, order, isDefault]
+    const values = [id, ownerId, name, kind, icon, color, parentId, archived, order, isDefault, currency, currencyDisplay]
     const result = await pg.query(query, values)
     return result.rows[0]
   }
@@ -52,6 +56,12 @@ class CategoryModel {
    */
   static async listAll({ since } = {}) {
     return listAllRows('categories', since)
+  }
+
+  /** Поточна валюта категорії — потрібна, щоб перевірити, чи апсерт справді її МІНЯЄ (див. upsertCategory.js/patchCategory.js). */
+  static async getCurrency({ id }) {
+    const result = await pg.query(`SELECT currency FROM categories WHERE id = $1 AND deleted_at IS NULL`, [id])
+    return result.rows[0]?.currency
   }
 
   static async patch({ id, ownerId: _ownerId, ...fields }) {
