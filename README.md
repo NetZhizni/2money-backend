@@ -18,10 +18,10 @@ lives in PostgreSQL — there is no Firestore involved anywhere.
 docker compose up -d      # Postgres on the port in .env (POSTGRES_PORT / exposed as 5433 by default)
 npm install
 npm run migrate:up
-npm run dev                # nodemon + cluster (one worker per CPU), ports PORT / PORT_ADMIN from .env
+npm run dev                # nodemon + cluster (one worker per CPU), all on PORT from .env
 ```
 
-`.env` needs `POSTGRES_*`, `PORT`/`PORT_ADMIN`, and a Firebase service account (`GOOGLE_*` — from Firebase Console → Project settings → Service accounts → Generate new private key).
+`.env` needs `POSTGRES_*`, `PORT`, a Firebase service account (`GOOGLE_*` — from Firebase Console → Project settings → Service accounts → Generate new private key), and the matching Firebase **web app** config (`FIREBASE_WEB_*` — same console, Project settings → General → Your apps → Web app). The frontend no longer carries any Firebase config of its own: it asks whichever server the user points it at for `FIREBASE_WEB_*` via `GET /api/config/public` (see `src/routers/config.js`) — the one endpoint that answers without a token. These values aren't secret (Firebase's own docs: protection is Authorized Domains + Security Rules in the console, not hiding `apiKey`), unlike `GOOGLE_PRIVATE_KEY` above, which must never be exposed.
 
 ## Authorization model
 
