@@ -3,6 +3,14 @@ const error = async (error, req, res, next) => {
     name: `${error?.name}`,
     message: `${error?.message}`,
     stack: `${error?.stack}`,
+    // `.code` — стабільний машинний ідентифікатор для business-помилок, що
+    // мають бути показані користувачу (див. services/internal/receipt/
+    // scanReceipt.js, util/gemini.js): фронтенд перекладає за ним замість
+    // парсингу `.message` (яке лишається англійською, для логів/дебагу).
+    // `.data` — додаткові параметри для підстановки в переклад (напр.
+    // retrySeconds). Обидва — лише коли помилка їх задає.
+    ...(error?.code ? { code: error.code } : {}),
+    ...(error?.data ? { data: error.data } : {}),
   }
   // Every intentional business error already sets its own `.status` (401/403/404/409 — see the
   // `services/internal/**` throws and middleware/auth.js). Anything that reaches here without one is an

@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { languageNameFor } from '#util/locale'
 
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
 const TIMEOUT_MS = 120000
@@ -88,36 +89,36 @@ const RECEIPT_SCHEMA = {
     merchant: {
       type: 'STRING',
       nullable: true,
-      description: 'Назва магазину/закладу, якщо видно на чеку',
+      description: 'Store/merchant name, if visible on the receipt',
     },
     date: {
       type: 'STRING',
       nullable: true,
-      description: 'Дата чека у форматі YYYY-MM-DD, якщо видно',
+      description: 'Receipt date in YYYY-MM-DD format, if visible',
     },
     currency: {
       type: 'STRING',
       nullable: true,
-      description: 'ISO 4217 код валюти, якщо видно на чеку',
+      description: 'ISO 4217 currency code, if visible on the receipt',
     },
     operations: {
       type: 'ARRAY',
-      description: 'Одна або декілька операцій, згрупованих за категорією',
+      description: 'One or more operations, grouped by category',
       items: {
         type: 'OBJECT',
         properties: {
           type: { type: 'STRING', enum: ['expense', 'income'] },
-          description: { type: 'STRING', description: 'Короткий опис (назви товарів/послуг)' },
-          amount: { type: 'NUMBER', description: 'Сума в валюті чека, додатне число' },
+          description: { type: 'STRING', description: 'Short description (item/service names)' },
+          amount: { type: 'NUMBER', description: 'Amount in the receipt\'s currency, a positive number' },
           categoryId: {
             type: 'STRING',
             nullable: true,
-            description: 'id категорії зі списку нижче, або null',
+            description: 'id of a category from the list below, or null',
           },
           subcategoryId: {
             type: 'STRING',
             nullable: true,
-            description: 'id підкатегорії зі списку нижче, або null',
+            description: 'id of a subcategory from the list below, or null',
           },
         },
         required: ['type', 'description', 'amount'],
@@ -143,7 +144,7 @@ function formatCategoriesForPrompt(categories) {
   }
   const lines = []
   for (const kind of ['expense', 'income']) {
-    lines.push(kind === 'expense' ? 'Категорії витрат:' : 'Категорії доходів:')
+    lines.push(kind === 'expense' ? 'Expense categories:' : 'Income categories:')
     for (const top of byKind[kind]) {
       lines.push(`- ${top.id} | ${top.name}`)
       for (const sub of categories) {
@@ -154,20 +155,28 @@ function formatCategoriesForPrompt(categories) {
   return lines.join('\n')
 }
 
-function buildPrompt(categories) {
-  return `Ти розпізнаєш фото товарного чека (касового чека) для сімейного застосунку обліку фінансів.
+/**
+ * Інструкції для Gemini навмисно англійською незалежно від locale — це
+ * текст ДЛЯ МОДЕЛІ (не для користувача), а англійською вона розуміє
+ * інструкції найнадійніше. "Локаль" тут впливає лише на мову згенерованого
+ * тексту (description, п.7 нижче) — саме це користувач і бачить.
+ */
+function buildPrompt(categories, locale) {
+  const languageName = languageNameFor(locale)
+  return `You are reading a photo of a retail/purchase receipt for a family finance-tracking app.
 
-Завдання:
-1. Прочитай усі товари/послуги на чеку та їхні суми.
-2. Згрупуй їх у операції ("operations") за змістом: якщо весь чек по суті одна категорія (наприклад, продукти) — поверни ОДНУ операцію на всю суму чека. Якщо чек явно охоплює різні категорії (наприклад, продукти + побутова хімія + алкоголь) — розбий на декілька операцій, по одній на кожну категорію, з сумою по цій категорії.
-3. Для кожної операції вибери НАЙБІЛЬШ ПІДХОДЯЩУ категорію ТІЛЬКИ зі списку нижче (використовуй саме id зі списку, нічого не вигадуй). Якщо є доречна підкатегорія — вкажи і categoryId (батьківську), і subcategoryId. Якщо підходящої категорії немає — постав categoryId: null.
-4. type — "expense" для звичайної покупки (майже завжди), "income" тільки якщо це явно повернення коштів/чек повернення.
-5. amount — додатне число, сума саме цієї операції в валюті чека.
-6. Не вигадуй суми чи товари, яких не видно на фото. Якщо фото нечітке — постарайся розпізнати те, що можливо.
+Task:
+1. Read every item/service on the receipt and its amount.
+2. Group them into "operations" by meaning: if the whole receipt is essentially one category (e.g. groceries) — return ONE operation for the receipt's full total. If the receipt clearly spans different categories (e.g. groceries + household chemicals + alcohol) — split it into several operations, one per category, each with that category's subtotal.
+3. For each operation, first check whether one of the SUBCATEGORIES listed below matches it precisely — subcategories are more specific than their parent category, so prefer a matching subcategory whenever one fits, and only fall back to a bare parent category when no subcategory applies. Use ONLY an id from the list below (never invent one). If you pick a subcategory, return BOTH its parent categoryId AND the subcategoryId. If nothing in the list fits, set categoryId: null.
+4. type — "expense" for an ordinary purchase (almost always), "income" only if this is clearly a refund/return receipt.
+5. amount — a positive number, the total for that operation in the receipt's currency.
+6. Don't invent amounts or items that aren't visible in the photo. If the photo is unclear, do your best with what's legible.
+7. Write the "description" field in ${languageName}. Item/merchant names quoted directly from the receipt don't need translating — only compose a generic ${languageName} description when the receipt text itself isn't legible enough to quote.
 
 ${formatCategoriesForPrompt(categories)}
 
-Поверни відповідь строго за заданою JSON-схемою.`
+Return the answer strictly following the given JSON schema.`
 }
 
 /**
@@ -179,12 +188,21 @@ ${formatCategoriesForPrompt(categories)}
  * в ліміт запитів (429) чи стає недоступною (404/500/503/обрив з'єднання
  * після вичерпаних ретраїв), запит повторюється на наступній моделі зі
  * списку — і лише якщо всі вони вичерпані, користувач отримує помилку.
+ *
+ * `locale` — код мови інтерфейсу викликача (див. #util/locale), впливає
+ * лише на мову згенерованого тексту в промпті (description), нічого не
+ * ламає, якщо не переданий (тоді buildPrompt сам впаде на англійську).
+ * Помилки нижче кидаються з `.code` (стабільний машинний ідентифікатор) —
+ * саме за ним фронтенд підбирає локалізований текст (див. frontend's
+ * i18n/locales/*.ts, ключі receipts.scanErrors.*); `.message` лишається
+ * англійською і призначений для логів/дебагу, а не для показу користувачу.
  */
-export async function extractReceiptFromImage({ imageBase64, mimeType, categories }) {
+export async function extractReceiptFromImage({ imageBase64, mimeType, categories, locale }) {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
-    const error = new Error('GEMINI_API_KEY не налаштовано на сервері')
+    const error = new Error('GEMINI_API_KEY is not configured on the server')
     error.status = 500
+    error.code = 'GEMINI_API_KEY_MISSING'
     throw error
   }
 
@@ -193,7 +211,7 @@ export async function extractReceiptFromImage({ imageBase64, mimeType, categorie
       {
         role: 'user',
         parts: [
-          { text: buildPrompt(categories) },
+          { text: buildPrompt(categories, locale) },
           { inline_data: { mime_type: mimeType, data: imageBase64 } },
         ],
       },
@@ -231,23 +249,28 @@ export async function extractReceiptFromImage({ imageBase64, mimeType, categorie
       if (status === 429) {
         // На free tier це майже завжди вичерпана хвилинна/денна квота, а не
         // миттєвий глюк — Google сам каже почекати десятки секунд
-        // (retryDelay). Обидві моделі вичерпані, тож віддаємо зрозумілу
-        // користувачу помилку з реальним часом очікування.
+        // (retryDelay). Обидві моделі вичерпані, тож віддаємо .code +
+        // retrySeconds (коли Google його повернув) — саме за retrySeconds
+        // фронтенд підставляє реальний час очікування у локалізований текст
+        // (receipts.scanErrors.rateLimitedIn), а не парсить .message.
         const retrySeconds = parseRetryDelaySeconds(cause)
         const error = new Error(
           retrySeconds
-            ? `Вичерпано ліміт запитів до Gemini (усі доступні моделі). Спробуйте ще раз приблизно через ${Math.ceil(retrySeconds)} секунд.`
-            : 'Вичерпано ліміт запитів до Gemini (усі доступні моделі). Спробуйте трохи пізніше.',
+            ? `Gemini rate limit exceeded (all available models). Try again in about ${Math.ceil(retrySeconds)} seconds.`
+            : 'Gemini rate limit exceeded (all available models). Try again later.',
         )
         error.status = 429
+        error.code = 'GEMINI_RATE_LIMITED'
+        if (retrySeconds) error.data = { retrySeconds: Math.ceil(retrySeconds) }
         error.cause = cause
         throw error
       }
 
       const error = new Error(
-        `Не вдалося звернутись до Gemini API: ${cause.response?.data?.error?.message || cause.message}`,
+        `Failed to reach the Gemini API: ${cause.response?.data?.error?.message || cause.message}`,
       )
       error.status = 502
+      error.code = 'GEMINI_REQUEST_FAILED'
       error.cause = cause
       throw error
     }
@@ -257,17 +280,19 @@ export async function extractReceiptFromImage({ imageBase64, mimeType, categorie
   if (!text) {
     const finishReason = response.data?.candidates?.[0]?.finishReason
     const error = new Error(
-      `Gemini не повернув розпізнаний результат (${finishReason || 'порожня відповідь'})`,
+      `Gemini did not return a recognized result (${finishReason || 'empty response'})`,
     )
     error.status = 502
+    error.code = 'GEMINI_EMPTY_RESPONSE'
     throw error
   }
 
   try {
     return JSON.parse(text)
   } catch (cause) {
-    const error = new Error('Gemini повернув некоректний JSON')
+    const error = new Error('Gemini returned invalid JSON')
     error.status = 502
+    error.code = 'GEMINI_INVALID_JSON'
     error.cause = cause
     throw error
   }

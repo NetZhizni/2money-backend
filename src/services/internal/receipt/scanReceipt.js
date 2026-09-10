@@ -1,6 +1,7 @@
 import CategoryModel from '#sql/CategoryModel'
 import { camelizeKeys } from '#util/caseConvert'
 import { extractReceiptFromImage } from '#util/gemini'
+import { resolveLocale } from '#util/locale'
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
 // ~6MB decoded (base64 is ~4/3 of that) — generous for a phone photo, well
@@ -8,23 +9,29 @@ const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic
 const MAX_BASE64_LENGTH = 8_000_000
 const MAX_OPERATIONS = 10
 
-const badRequest = (message) => {
+// `.message` тут — англійською, лише для логів/дебагу (нею ж наповнюється
+// JSON-відповідь middleware/error.js). Показ користувачу йде за `.code`:
+// фронтенд підбирає локалізований текст за ним (див. frontend's
+// i18n/locales/*.ts, ключі receipts.scanErrors.*), а не парсить .message.
+const badRequest = (message, code, data) => {
   const error = new Error(message)
   error.status = 400
+  error.code = code
+  if (data) error.data = data
   throw error
 }
 
 /** Приймає як голий base64, так і data URL (`data:image/jpeg;base64,...`) з фронтенду. */
 function normalizeImage(image, mimeTypeHint) {
-  if (typeof image !== 'string' || !image) badRequest('Фото чека обов’язкове')
+  if (typeof image !== 'string' || !image) badRequest('Receipt photo is required', 'RECEIPT_IMAGE_REQUIRED')
   const dataUrlMatch = image.match(/^data:([^;]+);base64,(.+)$/s)
   const base64 = dataUrlMatch ? dataUrlMatch[2] : image
   const mimeType = mimeTypeHint || dataUrlMatch?.[1] || 'image/jpeg'
   if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
-    badRequest(`Непідтримуваний формат фото: ${mimeType}`)
+    badRequest(`Unsupported photo format: ${mimeType}`, 'RECEIPT_UNSUPPORTED_FORMAT', { mimeType })
   }
   if (base64.length > MAX_BASE64_LENGTH) {
-    badRequest('Фото завелике — спробуйте стиснути або обрізати його')
+    badRequest('Photo is too large — try compressing or cropping it', 'RECEIPT_IMAGE_TOO_LARGE')
   }
   return { base64, mimeType }
 }
@@ -86,12 +93,13 @@ function normalizeOperation(op, categoryById) {
 const scanReceipt = async (req) => {
   const b = req.body
   const { base64, mimeType } = normalizeImage(b.image, b.mimeType)
+  const locale = resolveLocale(req)
 
   const rawCategories = await CategoryModel.listAll({})
   const categories = camelizeKeys(rawCategories).filter((c) => !c.archived)
   const categoryById = new Map(categories.map((c) => [c.id, c]))
 
-  const parsed = await extractReceiptFromImage({ imageBase64: base64, mimeType, categories })
+  const parsed = await extractReceiptFromImage({ imageBase64: base64, mimeType, categories, locale })
 
   const operations = (Array.isArray(parsed?.operations) ? parsed.operations : [])
     .map((op) => normalizeOperation(op, categoryById))
@@ -99,8 +107,9 @@ const scanReceipt = async (req) => {
     .slice(0, MAX_OPERATIONS)
 
   if (!operations.length) {
-    const error = new Error('Не вдалося розпізнати жодної операції на фото. Спробуйте інше фото або введіть операцію вручну.')
+    const error = new Error('Could not recognize any operation in the photo. Try a different photo or enter it manually.')
     error.status = 422
+    error.code = 'RECEIPT_NO_OPERATIONS_DETECTED'
     throw error
   }
 
