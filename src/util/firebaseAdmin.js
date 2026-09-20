@@ -1,4 +1,10 @@
-import firebaseAdmin from 'firebase-admin'
+// firebase-admin v12+ dropped the old namespaced default export
+// (`admin.credential.cert(...)`) in favor of standalone named exports from
+// `firebase-admin/app` etc. `#util/firebaseAdmin`'s own default export keeps
+// the `.auth()` shape the rest of the codebase (middleware/auth.js,
+// sockets/index.js) already relies on, so callers don't need to change.
+import { initializeApp, cert } from 'firebase-admin/app'
+import { getAuth } from 'firebase-admin/auth'
 
 const serviceAccount = {
   type: process.env.GOOGLE_TYPE,
@@ -14,8 +20,10 @@ const serviceAccount = {
   universe_domain: process.env.GOOGLE_UNIVERSE_DOMAIN,
 }
 
-firebaseAdmin.initializeApp({
-  credential: firebaseAdmin.credential.cert(serviceAccount),
+const app = initializeApp({
+  credential: cert(serviceAccount),
 })
 
-export default firebaseAdmin
+export default {
+  auth: () => getAuth(app),
+}
