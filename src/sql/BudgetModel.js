@@ -3,21 +3,22 @@ import { buildPatchSet, listAll as listAllRows, listOwned, softDelete } from './
 
 class BudgetModel {
   /** @returns {Promise<Object>} */
-  static async upsert({ id, ownerId, categoryId, amount, currency, period = 'monthly' }) {
+  static async upsert({ id, ownerId, categoryId, amount, currency, period = 'monthly', month }) {
     const query = `
-      INSERT INTO budgets (id, owner_id, category_id, amount, currency, period)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO budgets (id, owner_id, category_id, amount, currency, period, month)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       ON CONFLICT (id) DO UPDATE SET
         category_id = EXCLUDED.category_id,
         amount = EXCLUDED.amount,
         currency = EXCLUDED.currency,
         period = EXCLUDED.period,
+        month = EXCLUDED.month,
         updated_at = CURRENT_TIMESTAMP,
         deleted_at = NULL
       WHERE budgets.owner_id = EXCLUDED.owner_id
       RETURNING *
     `
-    const values = [id, ownerId, categoryId, amount, currency, period]
+    const values = [id, ownerId, categoryId, amount, currency, period, month]
     const result = await pg.query(query, values)
     return result.rows[0]
   }

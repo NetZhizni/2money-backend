@@ -3,6 +3,7 @@ import authGoogle from '#middleware/auth'
 import authRouter from './auth.js'
 import accountsRouter from './accounts.js'
 import categoriesRouter from './categories.js'
+import tagsRouter from './tags.js'
 import transactionsRouter from './transactions.js'
 import recurringTemplatesRouter from './recurringTemplates.js'
 import budgetsRouter from './budgets.js'
@@ -16,6 +17,7 @@ internalRouter.use(authGoogle)
 internalRouter.use('/auth', authRouter)
 internalRouter.use('/accounts', accountsRouter)
 internalRouter.use('/categories', categoriesRouter)
+internalRouter.use('/tags', tagsRouter)
 internalRouter.use('/transactions', transactionsRouter)
 internalRouter.use('/recurring-templates', recurringTemplatesRouter)
 internalRouter.use('/receipts', receiptsRouter)

@@ -9,6 +9,7 @@ const patchBudget = async (req) => {
     amount: b.amount,
     currency: b.currency,
     period: b.period,
+    month: b.month,
   })
   if (!budget) {
     const error = new Error('Бюджет не знайдено')

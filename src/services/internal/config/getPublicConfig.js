@@ -39,7 +39,7 @@ const getPublicConfig = async () => {
   }
 
   return {
-    service: '2money-backend',
+    service: 'stork-backend',
     firebase,
     features: {
       receiptScanning: Boolean(process.env.GEMINI_API_KEY),

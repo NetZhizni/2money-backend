@@ -19,13 +19,14 @@ class TransactionModel {
     note = null,
     templateId = null,
     receiptId = null,
+    tagIds = [],
   }) {
     const query = `
       INSERT INTO transactions (
         id, owner_id, participant_ids, type, date, account_id, to_account_id,
         category_id, subcategory_id, amount, to_amount, currency,
-        note, template_id, receipt_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        note, template_id, receipt_id, tag_ids
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       ON CONFLICT (id) DO UPDATE SET
         participant_ids = EXCLUDED.participant_ids,
         type = EXCLUDED.type,
@@ -40,6 +41,7 @@ class TransactionModel {
         note = EXCLUDED.note,
         template_id = EXCLUDED.template_id,
         receipt_id = EXCLUDED.receipt_id,
+        tag_ids = EXCLUDED.tag_ids,
         updated_at = CURRENT_TIMESTAMP,
         deleted_at = NULL
       WHERE transactions.owner_id = EXCLUDED.owner_id
@@ -48,7 +50,7 @@ class TransactionModel {
     const values = [
       id, ownerId, participantIds, type, date, accountId, toAccountId,
       categoryId, subcategoryId, amount, toAmount, currency,
-      note, templateId, receiptId,
+      note, templateId, receiptId, tagIds,
     ]
     const result = await pg.query(query, values)
     return result.rows[0]

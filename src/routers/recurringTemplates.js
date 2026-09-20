@@ -8,8 +8,8 @@ import removeRecurringTemplate from '#services/recurringTemplate/removeRecurring
 const router = Router()
 
 router.get('/', wrap(listRecurringTemplates))
-router.post('/', wrap(upsertRecurringTemplate))
-router.patch('/:id', wrap(patchRecurringTemplate))
-router.delete('/:id', wrap(removeRecurringTemplate))
+router.post('/', wrap(upsertRecurringTemplate, 'recurringTemplates'))
+router.patch('/:id', wrap(patchRecurringTemplate, 'recurringTemplates'))
+router.delete('/:id', wrap(removeRecurringTemplate, 'recurringTemplates'))
 
 export default router

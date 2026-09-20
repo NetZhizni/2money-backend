@@ -10,6 +10,7 @@ const upsertBudget = async (req) => {
     amount: b.amount,
     currency: b.currency,
     period: b.period,
+    month: b.month,
   })
   if (!budget) {
     const error = new Error('Бюджет з таким id вже належить іншому користувачу')

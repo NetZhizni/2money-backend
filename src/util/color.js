@@ -1,4 +1,4 @@
-// Same 8-color categorical palette as the frontend (FinTrack's src/utils/color.ts)
+// Same 8-color categorical palette as the frontend (its src/utils/color.ts)
 // so a user's badge color, assigned once here at creation time, matches what
 // the client would have picked.
 const CATEGORICAL = [

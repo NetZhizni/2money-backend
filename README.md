@@ -1,6 +1,6 @@
-# 2Money — backend
+# Stork — backend
 
-Express + PostgreSQL API for the 2Money family finance tracker. Google
+Express + PostgreSQL API for the Stork family finance tracker. Google
 sign-in is verified via Firebase Admin (`firebase-admin`); all business data
 (accounts, categories, transactions, recurring templates, budgets, users)
 lives in PostgreSQL — there is no Firestore involved anywhere.

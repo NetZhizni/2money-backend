@@ -3,7 +3,7 @@ import TransactionModel from '#sql/TransactionModel'
 
 /**
  * DELETE /api/accounts/:id — soft delete + каскадне приховання всіх
- * транзакцій, що торкались цього рахунку (як remove() у FinTrack accounts store).
+ * транзакцій, що торкались цього рахунку (як remove() у фронтендовому accounts store).
  */
 const removeAccount = async (req) => {
   const ownerId = req.user.id

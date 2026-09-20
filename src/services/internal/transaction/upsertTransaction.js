@@ -35,6 +35,7 @@ const upsertTransaction = async (req) => {
     note: b.note ?? null,
     templateId: b.templateId ?? null,
     receiptId: b.receiptId ?? null,
+    tagIds: b.tagIds ?? [],
   })
   if (!transaction) {
     const error = new Error('Транзакція з таким id вже належить іншому користувачу')

@@ -32,6 +32,7 @@ const patchTransaction = async (req) => {
     note: b.note,
     template_id: b.templateId,
     receipt_id: b.receiptId,
+    tag_ids: b.tagIds,
   })
   if (!transaction) {
     const error = new Error('Транзакцію не знайдено')

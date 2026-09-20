@@ -8,8 +8,8 @@ import removeTransaction from '#services/transaction/removeTransaction'
 const router = Router()
 
 router.get('/', wrap(listTransactions))
-router.post('/', wrap(upsertTransaction))
-router.patch('/:id', wrap(patchTransaction))
-router.delete('/:id', wrap(removeTransaction))
+router.post('/', wrap(upsertTransaction, 'transactions'))
+router.patch('/:id', wrap(patchTransaction, 'transactions'))
+router.delete('/:id', wrap(removeTransaction, 'transactions'))
 
 export default router

@@ -8,8 +8,8 @@ import removeAccount from '#services/account/removeAccount'
 const router = Router()
 
 router.get('/', wrap(listAccounts))
-router.post('/', wrap(upsertAccount))
-router.patch('/:id', wrap(patchAccount))
-router.delete('/:id', wrap(removeAccount))
+router.post('/', wrap(upsertAccount, 'accounts'))
+router.patch('/:id', wrap(patchAccount, 'accounts'))
+router.delete('/:id', wrap(removeAccount, 'accounts'))
 
 export default router

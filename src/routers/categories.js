@@ -8,8 +8,8 @@ import removeCategory from '#services/category/removeCategory'
 const router = Router()
 
 router.get('/', wrap(listCategories))
-router.post('/', wrap(upsertCategory))
-router.patch('/:id', wrap(patchCategory))
-router.delete('/:id', wrap(removeCategory))
+router.post('/', wrap(upsertCategory, 'categories'))
+router.patch('/:id', wrap(patchCategory, 'categories'))
+router.delete('/:id', wrap(removeCategory, 'categories'))
 
 export default router

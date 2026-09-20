@@ -10,8 +10,8 @@ const router = Router()
 
 router.post('/scan', wrap(scanReceipt))
 router.get('/', wrap(listReceipts))
-router.post('/', wrap(upsertReceipt))
-router.patch('/:id', wrap(patchReceipt))
-router.delete('/:id', wrap(removeReceipt))
+router.post('/', wrap(upsertReceipt, 'receipts'))
+router.patch('/:id', wrap(patchReceipt, 'receipts'))
+router.delete('/:id', wrap(removeReceipt, 'receipts'))
 
 export default router

@@ -4,7 +4,7 @@ import dbConfig from '../constants/dbConfig.js'
 
 // numeric (OID 1700) comes back from `pg` as a string by default (it can't
 // know a money value won't blow past float precision) — this app treats
-// amounts as plain JS numbers everywhere (matches the ported FinTrack model
+// amounts as plain JS numbers everywhere (matches the frontend's model
 // types), so parse it eagerly instead of pushing Number(...) onto every caller.
 types.setTypeParser(1700, (value) => (value === null ? null : parseFloat(value)))
 

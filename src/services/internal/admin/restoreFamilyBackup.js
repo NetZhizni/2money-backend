@@ -8,7 +8,7 @@ import BudgetModel from '#sql/BudgetModel'
 import pg from '#util/pg'
 import { uuidv7 } from '#util/uuid'
 import { colorForEmail } from '#util/color'
-import { msToDate } from '#util/time'
+import { msToDate, monthKey } from '#util/time'
 
 /**
  * POST /api/admin/restore — owner-only, one-shot restore of a WHOLE-FAMILY
@@ -206,6 +206,10 @@ const restoreFamilyBackup = async (req) => {
         amount: b.amount,
         currency: b.currency,
         period: b.period,
+        // A backup exported before Budget.month existed has no month of its
+        // own — fall back to the month it was created in, same rule the
+        // add-budget-month migration applied to rows already in the database.
+        month: b.month ?? monthKey(b.createdAt),
       })
     }
 

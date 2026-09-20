@@ -8,8 +8,8 @@ import removeBudget from '#services/budget/removeBudget'
 const router = Router()
 
 router.get('/', wrap(listBudgets))
-router.post('/', wrap(upsertBudget))
-router.patch('/:id', wrap(patchBudget))
-router.delete('/:id', wrap(removeBudget))
+router.post('/', wrap(upsertBudget, 'budgets'))
+router.patch('/:id', wrap(patchBudget, 'budgets'))
+router.delete('/:id', wrap(removeBudget, 'budgets'))
 
 export default router
