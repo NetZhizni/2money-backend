@@ -1,12 +1,7 @@
 import { Router } from 'express'
 import authGoogle from '#middleware/auth'
+import { mountSyncRoutes } from '#sync/router'
 import authRouter from './auth.js'
-import accountsRouter from './accounts.js'
-import categoriesRouter from './categories.js'
-import tagsRouter from './tags.js'
-import transactionsRouter from './transactions.js'
-import recurringTemplatesRouter from './recurringTemplates.js'
-import budgetsRouter from './budgets.js'
 import settingsRouter from './settings.js'
 import usersRouter from './users.js'
 import adminRouter from './admin.js'
@@ -15,13 +10,8 @@ import receiptsRouter from './receipts.js'
 const internalRouter = Router()
 internalRouter.use(authGoogle)
 internalRouter.use('/auth', authRouter)
-internalRouter.use('/accounts', accountsRouter)
-internalRouter.use('/categories', categoriesRouter)
-internalRouter.use('/tags', tagsRouter)
-internalRouter.use('/transactions', transactionsRouter)
-internalRouter.use('/recurring-templates', recurringTemplatesRouter)
 internalRouter.use('/receipts', receiptsRouter)
-internalRouter.use('/budgets', budgetsRouter)
+mountSyncRoutes(internalRouter)
 internalRouter.use('/settings', settingsRouter)
 internalRouter.use('/users', usersRouter)
 internalRouter.use('/admin', adminRouter)

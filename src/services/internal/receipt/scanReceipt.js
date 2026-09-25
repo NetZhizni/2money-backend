@@ -1,4 +1,4 @@
-import CategoryModel from '#sql/CategoryModel'
+import engine from '#sync/engine'
 import { camelizeKeys } from '#util/caseConvert'
 import { extractReceiptFromImage } from '#util/gemini'
 import { resolveLocale } from '#util/locale'
@@ -81,7 +81,7 @@ function normalizeOperation(op, categoryById) {
 /**
  * POST /api/receipts/scan — фото чека -> список розпізнаних "операцій".
  *
- * На відміну від решти POST /api/* (upsertTransaction тощо) тут НІЧОГО не
+ * На відміну від решти POST /api/* (див. sync/router.js) тут НІЧОГО не
  * пишеться в БД: рахунок оплати (валюта, курс до базової валюти) і саме
  * рішення "зберегти/відредагувати/відкинути" кожну операцію — це виключно
  * фронтенд-логіка (той самий шлях, що й ручне створення операції — див.
@@ -95,7 +95,7 @@ const scanReceipt = async (req) => {
   const { base64, mimeType } = normalizeImage(b.image, b.mimeType)
   const locale = resolveLocale(req)
 
-  const rawCategories = await CategoryModel.listAll({})
+  const rawCategories = await engine.listRows({ entity: 'categories' })
   const categories = camelizeKeys(rawCategories).filter((c) => !c.archived)
   const categoryById = new Map(categories.map((c) => [c.id, c]))
 

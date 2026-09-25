@@ -1,10 +1,8 @@
-import http from 'http'
 import express from 'express'
 import cors from './middleware/cors.js'
 import error from './middleware/error.js'
 import router from './routers/index.js'
 import configRouter from './routers/config.js'
-import { setupSocketIO } from './sockets/index.js'
 
 const app = express()
 app.use(cors)
@@ -35,9 +33,7 @@ const startServer = () => {
   const port = process.env.PORT
   app.set('port', port)
 
-  const server = http.createServer(app)
-  setupSocketIO(server)
-  server.listen(port, () => {
+  app.listen(port, () => {
     console.log(`\u001b[1;44mHTTP - [OK] - localhost:${port}\u001b[0m`)
   })
 }

@@ -1,8 +1,8 @@
 // firebase-admin v12+ dropped the old namespaced default export
 // (`admin.credential.cert(...)`) in favor of standalone named exports from
 // `firebase-admin/app` etc. `#util/firebaseAdmin`'s own default export keeps
-// the `.auth()` shape the rest of the codebase (middleware/auth.js,
-// sockets/index.js) already relies on, so callers don't need to change.
+// the `.auth()` shape the rest of the codebase (middleware/auth.js) already
+// relies on, so callers don't need to change.
 import { initializeApp, cert } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
 

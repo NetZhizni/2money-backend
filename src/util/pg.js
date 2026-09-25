@@ -60,6 +60,11 @@ class pg {
       client.release()
     }
   }
+
+  /** Closes every pooled connection — lets a test run (see test/) exit instead of waiting out idle sockets. */
+  static async end() {
+    await dbPool.end()
+  }
 }
 
 export default pg

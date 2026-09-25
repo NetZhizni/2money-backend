@@ -7,7 +7,8 @@
     "#sql/*": "./src/sql/*.js",
     "#util/*": "./src/util/*.js",
     "#services/*": "./src/services/internal/*.js",
-    "#middleware/*": "./src/middleware/*.js"
+    "#middleware/*": "./src/middleware/*.js",
+    "#sync/*": "./src/sync/*.js"
   },
   "scripts": {
     "dev": "nodemon -r dotenv/config src/cluster.js dotenv_config_path=.env",
@@ -15,7 +16,8 @@
     "migrate": "node src/migrate.js --action=up",
     "migrate:create": "node-pg-migrate create test",
     "migrate:up": "node -r dotenv/config src/migrate.js --action=up dotenv_config_path=.env",
-    "migrate:down": "node -r dotenv/config src/migrate.js --action=down dotenv_config_path=.env"
+    "migrate:down": "node -r dotenv/config src/migrate.js --action=down dotenv_config_path=.env",
+    "test": "node --test \"test/**/*.test.js\""
   },
   "author": "",
   "license": "ISC",
@@ -26,10 +28,11 @@
     "firebase-admin": "^14.4.0",
     "node-pg-migrate": "^9.0.0",
     "pg": "^8.23.0",
-    "socket.io": "^4.8.3",
     "uuid": "^14.0.2"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite-socket": "^0.2.11",
     "dotenv": "^18.0.1",
     "nodemon": "^3.1.14"
   }
