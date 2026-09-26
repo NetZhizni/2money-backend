@@ -198,6 +198,56 @@ describe('bulk upsert', () => {
     assert.equal((await row('tags', archived.id)).archived, true)
     assert.equal((await row('tags', legacy.id)).archived, false)
   })
+
+  test('a recurring template keeps its second amount, tags and confirm flag; one sent without them gets none', async () => {
+    const acc = account()
+    await engine.create({ entity: 'accounts', ownerId: A.id, body: acc })
+    const tag = { id: uuidv7(), name: 'Комуналка', color: '#000000' }
+    await engine.create({ entity: 'tags', ownerId: A.id, body: tag })
+    const full = template(acc.id, { toAmount: 12.5, tagIds: [tag.id], requireConfirm: true })
+    const legacy = template(acc.id)
+    const { body } = await call(A, 'POST', '/recurring-templates/bulk', { items: [full, legacy] })
+    assert.deepEqual(body.items.map((item) => item.ok), [true, true])
+
+    const stored = await row('recurring_templates', full.id)
+    assert.equal(stored.to_amount, 12.5)
+    assert.deepEqual(stored.tag_ids, [tag.id])
+    assert.equal(stored.require_confirm, true)
+    const old = await row('recurring_templates', legacy.id)
+    assert.equal(old.to_amount, null)
+    assert.deepEqual(old.tag_ids, [])
+    assert.equal(old.require_confirm, false)
+  })
+
+  test('an account keeps its savings goal and hands the date back as epoch ms; one sent without it has none', async () => {
+    const goalDate = Date.UTC(2027, 5, 30, 20, 59, 59, 999)
+    const saving = account({ type: 'savings', goalAmount: 50000, goalDate })
+    const plain = account()
+    const { body } = await call(A, 'POST', '/accounts/bulk', { items: [saving, plain] })
+    assert.deepEqual(body.items.map((item) => item.ok), [true, true])
+    assert.equal((await row('accounts', saving.id)).goal_amount, 50000)
+    assert.equal((await row('accounts', plain.id)).goal_amount, null)
+
+    const { body: pulled } = await call(A, 'POST', '/accounts/by-ids', { ids: [saving.id, plain.id] })
+    const byId = new Map(pulled.items.map((item) => [item.id, item]))
+    assert.equal(byId.get(saving.id).goalAmount, 50000)
+    assert.equal(byId.get(saving.id).goalDate, goalDate)
+    assert.equal(byId.get(plain.id).goalDate, null)
+  })
+
+  test('an account keeps its credit limit; one sent without it has none', async () => {
+    const card = account({ creditLimit: 20000.5 })
+    const cash = account()
+    const { body } = await call(A, 'POST', '/accounts/bulk', { items: [card, cash] })
+    assert.deepEqual(body.items.map((item) => item.ok), [true, true])
+    assert.equal((await row('accounts', card.id)).credit_limit, 20000.5)
+    assert.equal((await row('accounts', cash.id)).credit_limit, null)
+
+    const { body: pulled } = await call(A, 'POST', '/accounts/by-ids', { ids: [card.id, cash.id] })
+    const byId = new Map(pulled.items.map((item) => [item.id, item]))
+    assert.equal(byId.get(card.id).creditLimit, 20000.5)
+    assert.equal(byId.get(cash.id).creditLimit, null)
+  })
 })
 
 describe('participantIds', () => {
@@ -672,5 +722,27 @@ describe('family restore', () => {
     const clash = { ...payload, accounts: [{ ...acc, id: theirs.id }], tags: [], transactions: [] }
     await assert.rejects(restoreFamilyBackup({ user: A, body: clash }), (error) => error.status === 409)
     assert.equal((await row('accounts', theirs.id)).owner_id, B.id)
+  })
+
+  test('brings back savings goals, credit limits and recurring template options', async () => {
+    const { default: restoreFamilyBackup } = await import('#services/admin/restoreFamilyBackup')
+    const oldOwnerId = uuidv7()
+    const goalDate = Date.UTC(2027, 0, 1)
+    const acc = { ...account({ type: 'savings', goalAmount: 1000, goalDate }), ownerId: oldOwnerId, includeInTotal: true, archived: false, order: 0, initialBalance: 0 }
+    const card = { ...account({ creditLimit: 15000 }), ownerId: oldOwnerId, includeInTotal: true, archived: false, order: 1, initialBalance: 0 }
+    const tag = { id: uuidv7(), ownerId: oldOwnerId, name: 'щомісячне', color: '#00ff00' }
+    const tpl = { ...template(acc.id, { toAmount: 3, tagIds: [tag.id], requireConfirm: true }), ownerId: oldOwnerId, interval: 1, active: true }
+    const payload = { version: 'family-1', users: [{ id: oldOwnerId, email: A.email }], accounts: [acc, card], tags: [tag], templates: [tpl] }
+
+    await restoreFamilyBackup({ user: A, body: payload })
+    const storedAccount = await row('accounts', acc.id)
+    assert.equal(storedAccount.goal_amount, 1000)
+    assert.equal(storedAccount.goal_date.getTime(), goalDate)
+    assert.equal(storedAccount.credit_limit, null)
+    assert.equal((await row('accounts', card.id)).credit_limit, 15000)
+    const storedTemplate = await row('recurring_templates', tpl.id)
+    assert.equal(storedTemplate.to_amount, 3)
+    assert.deepEqual(storedTemplate.tag_ids, [tag.id])
+    assert.equal(storedTemplate.require_confirm, true)
   })
 })

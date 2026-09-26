@@ -19,6 +19,10 @@ import hooks from './hooks/index.js'
  * needs to learn that a row is gone, and it only ever asks "what changed since
  * <cursor>" — a hard delete would simply be invisible to it (see listRows()'s
  * `since` branch, which deliberately drops the `deleted_at IS NULL` filter).
+ * Only once a tombstone is old enough does jobs/purgeDeleted.js remove it for
+ * good — and from then on, a client whose cursor predates it gets the full
+ * list instead of a delta (see cursorExpired), and an edit of a record it no
+ * longer exists for is refused rather than re-creating it (see refuseVanished).
  *
  * Two devices writing the same record are settled by WHEN each change was
  * made, not by which request arrived last: every write carries the client's
@@ -240,6 +244,23 @@ async function currentState(def, ids) {
 }
 
 /**
+ * Sets `.error` on every prepared row sent as an edit of a record the client
+ * already had (`mustExist` — see the frontend's db/sync/outbox.ts) that the
+ * server doesn't have at all: one deleted so long ago that its tombstone has
+ * since been purged (see jobs/purgeDeleted.js). Without this the upsert
+ * would quietly create it again, from a device that was offline for months —
+ * exactly the resurrection a tombstone refuses (see upsertStatement's guard).
+ * A row sent without the flag (a new record, or a client from before it) is
+ * written as always.
+ */
+async function refuseVanished(def, rows) {
+  const expected = rows.filter((row) => row.mustExist)
+  if (!expected.length) return
+  const state = await currentState(def, expected.map((row) => row.id))
+  for (const row of expected) if (!state.has(row.id)) row.error = refusal.deleted()
+}
+
+/**
  * Sets `.error` on every prepared row the upsert's guard turned away, saying
  * which of its conditions failed — the client can't do anything useful with
  * a bare "conflict", but "someone deleted this" or "someone changed this
@@ -299,6 +320,9 @@ const CURSOR_SLACK_MS = 5_000
  * connection: if its name isn't the configured one, every session on the
  * database counts. That errs towards re-sending rows rather than skipping
  * them — a cursor held back too far only costs a larger delta.
+ *
+ * `purgedThrough` rides along in the same query (entity -> epoch ms, see
+ * cursorExpired) rather than costing every pull a round trip of its own.
  */
 async function readClock() {
   const { rows } = await pg.query(
@@ -310,11 +334,34 @@ async function readClock() {
         AND pid <> pg_backend_pid()
         AND (application_name = $1 OR current_setting('application_name') IS DISTINCT FROM $1)
         AND xact_start > now() - interval '1 hour'
-    ), now())) AS horizon
+    ), now())) AS horizon,
+    (SELECT json_object_agg(entity, ceil(extract(epoch FROM purged_through) * 1000)) FROM sync_purges) AS purges
   `,
     [dbConfig.application_name],
   )
-  return { syncedAt: new Date(rows[0].horizon).getTime() - CURSOR_SLACK_MS, serverNow: new Date(rows[0].now).getTime() }
+  // Rounded UP to the millisecond: cursors are whole milliseconds, while the
+  // watermark keeps Postgres' microseconds, and a cursor in the same
+  // millisecond as the last purged row can still be behind it.
+  const purgedThrough = {}
+  for (const [entity, at] of Object.entries(rows[0].purges ?? {})) purgedThrough[entity] = Number(at)
+  return {
+    syncedAt: new Date(rows[0].horizon).getTime() - CURSOR_SLACK_MS,
+    serverNow: new Date(rows[0].now).getTime(),
+    purgedThrough,
+  }
+}
+
+/**
+ * Whether a delta since `since` could be missing deletions: the entity's
+ * tombstones have been purged (see jobs/purgeDeleted.js) past that cursor,
+ * so a row deleted after it may now be gone without a trace — a client that
+ * has been away longer than tombstones are kept. Such a pull is answered
+ * with the full list instead, flagged `full`, and the client drops whatever
+ * it still holds that the list doesn't have (see the frontend's
+ * db/sync/pull.ts).
+ */
+function cursorExpired(since, purgedThrough) {
+  return Boolean(since) && purgedThrough != null && since.getTime() < purgedThrough
 }
 
 /** A growing parameter list, and a function that adds a value to it and returns its placeholder. */
@@ -376,9 +423,10 @@ class SyncEngine {
   }
 
   async list({ entity, ownerId, since, scope, after, limit }) {
-    const clock = await readClock()
-    const { items, next } = await this.page({ entity, ownerId, since, scope, after, limit })
-    return { items, ...clock, next }
+    const { purgedThrough, ...clock } = await readClock()
+    const full = cursorExpired(since, purgedThrough[entity])
+    const { items, next } = await this.page({ entity, ownerId, since: full ? undefined : since, scope, after, limit })
+    return { items, ...clock, next, ...(full ? { full: true } : {}) }
   }
 
   /**
@@ -388,28 +436,37 @@ class SyncEngine {
    * entity name to where its previous page left off. Unknown names are
    * left out of the answer rather than rejected, so a client newer than this
    * server just sees them missing and doesn't advance those cursors.
-   * `next` only lists the entities that have more to page through.
+   * `next` only lists the entities that have more to page through, and
+   * `full` (only when non-empty) the ones answered with their full list
+   * because their cursor has expired — see cursorExpired.
    */
   async changes({ ownerId, cursors, scope, after = {}, limit }) {
-    const clock = await readClock()
+    const { purgedThrough, ...clock } = await readClock()
     const names = Object.keys(cursors).filter((name) => Object.hasOwn(registry, name))
+    const full = names.filter((name) => cursorExpired(cursors[name], purgedThrough[name]))
+    const since = Object.fromEntries(names.map((name) => [name, full.includes(name) ? undefined : cursors[name]]))
     // Most periodic syncs find nothing new anywhere — one query answers that
     // for every delta at once, and only the entities that do have changes
     // get a list query of their own.
-    const deltas = names.filter((name) => cursors[name] && !after[name])
-    const changed = deltas.length ? await this.changedEntities({ ownerId, cursors, scope, entities: deltas }) : new Set()
+    const deltas = names.filter((name) => since[name] && !after[name])
+    const changed = deltas.length ? await this.changedEntities({ ownerId, cursors: since, scope, entities: deltas }) : new Set()
     const pages = await Promise.all(
       names.map((entity) =>
         deltas.includes(entity) && !changed.has(entity)
           ? { items: [], next: null }
-          : this.page({ entity, ownerId, since: cursors[entity], scope, after: after[entity], limit }),
+          : this.page({ entity, ownerId, since: since[entity], scope, after: after[entity], limit }),
       ),
     )
     const next = {}
     names.forEach((name, i) => {
       if (pages[i].next) next[name] = pages[i].next
     })
-    return { ...clock, entities: Object.fromEntries(names.map((name, i) => [name, pages[i].items])), next }
+    return {
+      ...clock,
+      entities: Object.fromEntries(names.map((name, i) => [name, pages[i].items])),
+      next,
+      ...(full.length ? { full } : {}),
+    }
   }
 
   /**
@@ -490,18 +547,24 @@ class SyncEngine {
         return
       }
       const id = item.id ? item.id.toLowerCase() : uuidv7()
-      const body = { ...clientBody(def, item), id }
+      const { mustExist: flag, ...fields } = item
+      const body = { ...clientBody(def, fields), id }
+      // Twice in one batch, the record only has to exist already if every
+      // write of it says so — its creation followed by an edit is still a creation.
+      const mustExist = flag === true
       const existing = pending.get(id)
       if (existing) {
         existing.body = body
+        existing.mustExist &&= mustExist
         existing.indexes.push(index)
       } else {
-        pending.set(id, { id, ownerId, providedId: Boolean(item.id), body, indexes: [index] })
+        pending.set(id, { id, ownerId, providedId: Boolean(item.id), body, mustExist, indexes: [index] })
       }
     })
 
     const batch = [...pending.values()]
-    await refuseDeletedRefs(def, batch)
+    await refuseVanished(def, batch)
+    await refuseDeletedRefs(def, batch.filter((p) => !p.error))
     const candidates = batch.filter((p) => !p.error)
     const ctx = hook?.prepare ? await hook.prepare({ items: candidates.map((p) => p.body), ownerId }) : undefined
     const writable = []

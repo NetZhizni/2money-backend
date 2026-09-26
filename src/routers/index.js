@@ -6,6 +6,7 @@ import settingsRouter from './settings.js'
 import usersRouter from './users.js'
 import adminRouter from './admin.js'
 import receiptsRouter from './receipts.js'
+import ratesRouter from './rates.js'
 
 const internalRouter = Router()
 internalRouter.use(authGoogle)
@@ -13,6 +14,7 @@ internalRouter.use('/auth', authRouter)
 internalRouter.use('/receipts', receiptsRouter)
 mountSyncRoutes(internalRouter)
 internalRouter.use('/settings', settingsRouter)
+internalRouter.use('/rates', ratesRouter)
 internalRouter.use('/users', usersRouter)
 internalRouter.use('/admin', adminRouter)
 

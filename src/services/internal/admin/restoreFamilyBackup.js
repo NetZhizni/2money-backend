@@ -115,6 +115,9 @@ const restoreFamilyBackup = async (req) => {
           order: a.order,
           note: a.note ?? null,
           currencyDisplay: a.currencyDisplay ?? null,
+          goalAmount: a.goalAmount ?? null,
+          goalDate: a.goalDate ?? null,
+          creditLimit: a.creditLimit ?? null,
         },
       })
     }
@@ -172,14 +175,17 @@ const restoreFamilyBackup = async (req) => {
           categoryId: tpl.categoryId ?? null,
           subcategoryId: tpl.subcategoryId ?? null,
           amount: tpl.amount,
+          toAmount: tpl.toAmount ?? null,
           currency: tpl.currency,
           note: tpl.note ?? null,
+          tagIds: tpl.tagIds ?? [],
           frequency: tpl.frequency,
           interval: tpl.interval,
           startDate: tpl.startDate,
           endDate: tpl.endDate,
           nextDate: tpl.nextDate,
           active: tpl.active,
+          requireConfirm: tpl.requireConfirm ?? false,
         },
       })
     }
